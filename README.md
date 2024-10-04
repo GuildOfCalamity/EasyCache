@@ -12,7 +12,7 @@
 | NET Framework | 4.8.1 |
 | System.Runtime.Caching | 8.0.0.0 |
 
-- A memory caching library which offers timed evictions for stored objects.
+- A [memory caching](https://learn.microsoft.com/en-us/dotnet/api/system.runtime.caching.memorycache?view=net-6.0) library which offers timed evictions for stored objects.
 
 - This solution includes a console application for testing the DLL.
 
