@@ -14,6 +14,6 @@
 
 - A memory caching library which offers timed evictions for stored objects.
 
-- This solution includes a console application for testing the logger DLL.
+- This solution includes a console application for testing the DLL.
 
 ![Screenshot](Screenshot.png)
