@@ -210,31 +210,16 @@ public static class CacheHelper
 }
 
 #region [Home-brew cache without System.Runtime.Caching]
-public class CacheItem<T>
-{
-    public T? Value { get; set; }
-    public DateTime ExpirationTime { get; set; }
-}
-
-public class EvictionInfo<T>
-{
-    public string Key { get; set; }
-    public T? Value { get; set; }
-    public DateTime ExpirationTime { get; set; }
-    public string Reason { get; set; }
-    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason)
-    {
-        Key = key;
-        Value = value;
-        ExpirationTime = expirationTime;
-        Reason = reason;
-    }
-}
-
+/// <summary>
+/// A hand-rolled replacement for <see cref="System.Runtime.Caching.MemoryCache"/> that offers generic support.
+/// </summary>
+/// <typeparam name="T"></typeparam>
 public class CacheHelper<T> : IDisposable
 {
     public event ItemEvictedHandler? ItemEvicted;
+    public event ItemUpdatedHandler? ItemUpdated;
     public delegate void ItemEvictedHandler(EvictionInfo<T> evictionInfo);
+    public delegate void ItemUpdatedHandler(UpdatedInfo<T> updateInfo);
     readonly Dictionary<string, CacheItem<T>> _cache = new Dictionary<string, CacheItem<T>>();
     readonly TimeSpan _checkInterval = TimeSpan.FromSeconds(2);
     Timer? _evictionTimer = null;
@@ -253,8 +238,17 @@ public class CacheHelper<T> : IDisposable
         _evictionTimer = new Timer(EvictExpiredItems, null, checkInterval, checkInterval);
     }
 
-    public void AddOrUpdate(string key, T value, TimeSpan timeToLive)
+    /// <summary>
+    /// Adds or updates any object in the <see cref="_cache"/>.
+    /// </summary>
+    /// <param name="key">the key name</param>
+    /// <param name="value">the object to cache</param>
+    /// <param name="timeToLive">how long to keep until expiry</param>
+    public void AddOrUpdate(string key, T? value, TimeSpan timeToLive)
     {
+        if (string.IsNullOrEmpty(key))
+            return;
+
         var expirationTime = DateTime.Now.Add(timeToLive);
         lock (_cache)
         {
@@ -262,27 +256,69 @@ public class CacheHelper<T> : IDisposable
             {
                 _cache[key].Value = value;
                 _cache[key].ExpirationTime = expirationTime;
+                OnItemUpdated(new UpdatedInfo<T>(key, value, expirationTime));
             }
             else
             {
-                _cache[key] = new CacheItem<T> { Value = value, ExpirationTime = expirationTime };
+                _cache[key] = new CacheItem<T> 
+                { 
+                    Value = value, 
+                    ExpirationTime = expirationTime 
+                };
             }
         }
     }
 
-    public void Remove(string key)
+    /// <summary>
+    /// Checks <see cref="_cache"/> for any vague match to the specified <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">the key to find</param>
+    public bool Contains(string key)
     {
+        if (string.IsNullOrEmpty(key))
+            return false;
+
+        return _cache.Any(k => k.Key.Contains(key));
+    }
+
+    /// <summary>
+    /// Checks <see cref="_cache"/> for any exact match to the specified <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">the key to find</param>
+    public bool Equals(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return false;
+
+        return _cache.Any(k => k.Key.Equals(key));
+    }
+
+    /// <summary>
+    /// Removes any <see cref="CacheItem{T}"/> who matches the specified <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">the key to remove</param>
+    public bool Remove(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return false;
+
         lock (_cache)
         {
             if (_cache.TryGetValue(key, out var cacheItem))
             {
                 _cache.Remove(key);
-                // Fire the eviction event with the reason "Manual"
+                // User removed, so fire the event with the reason "Manual"
                 OnItemEvicted(new EvictionInfo<T>(key, cacheItem.Value, cacheItem.ExpirationTime, "Manual"));
+                return true;
             }
         }
+        return false;
     }
 
+    /// <summary>
+    /// Fetches any keys present in the <see cref="_cache"/>.
+    /// </summary>
+    /// <returns><see cref="List{T}"/></returns>
     public List<string> GetAllKeys()
     {
         lock (_cache)
@@ -317,15 +353,13 @@ public class CacheHelper<T> : IDisposable
         }
     }
 
-    protected virtual void OnItemEvicted(EvictionInfo<T> evictionInfo)
-    {
-        ItemEvicted?.Invoke(evictionInfo); // Fire the event if there are subscribers
-    }
+    protected virtual void OnItemEvicted(EvictionInfo<T> evictionInfo) => ItemEvicted?.Invoke(evictionInfo);
+    protected virtual void OnItemUpdated(UpdatedInfo<T> updateInfo) => ItemUpdated?.Invoke(updateInfo);
 
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this); // Prevents finalizer from running
+        GC.SuppressFinalize(this); // Prevent finalizer
     }
 
     protected virtual void Dispose(bool disposing)
@@ -344,6 +378,52 @@ public class CacheHelper<T> : IDisposable
         }
     }
 
+    /// <summary>
+    /// In the event that a finalizer is not called.
+    /// </summary>
     ~CacheHelper() => Dispose(false);
+}
+
+/// <summary>
+/// Supporting class for <see cref="CacheHelper{T}"/> objects.
+/// </summary>
+public class CacheItem<T>
+{
+    public T? Value { get; set; }
+    public DateTime ExpirationTime { get; set; }
+}
+
+/// <summary>
+/// Supporting class for <see cref="CacheHelper{T}"/> events.
+/// </summary>
+public class EvictionInfo<T>
+{
+    public string Key { get; set; }
+    public T? Value { get; set; }
+    public DateTime ExpirationTime { get; set; }
+    public string Reason { get; set; }
+    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason)
+    {
+        Key = key;
+        Value = value;
+        ExpirationTime = expirationTime;
+        Reason = reason;
+    }
+}
+
+/// <summary>
+/// Supporting class for <see cref="CacheHelper{T}"/> events.
+/// </summary>
+public class UpdatedInfo<T>
+{
+    public string Key { get; set; }
+    public T? Value { get; set; }
+    public DateTime ExpirationTime { get; set; }
+    public UpdatedInfo(string key, T? value, DateTime expirationTime)
+    {
+        Key = key;
+        Value = value;
+        ExpirationTime = expirationTime;
+    }
 }
 #endregion
