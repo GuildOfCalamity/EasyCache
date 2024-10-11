@@ -6,12 +6,34 @@ namespace Test
     {
         static void Main(string[] args)
         {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+
+            #region [Using my home-brew cache]
+            Console.WriteLine("\r\n  Home-Brew Cache Test  \r\n↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓\r\n");
+            var cache = new CacheHelper<string>(TimeSpan.FromSeconds(2));
+            cache.ItemEvicted += Cache_ItemEvicted;
+            try
+            {
+                cache.AddOrUpdate("key1", GenerateKeyValue(), TimeSpan.FromSeconds(3));
+                cache.AddOrUpdate("key2", GenerateKeyValue(), TimeSpan.FromSeconds(30));
+                var keys = cache.GetAllKeys();
+                Console.WriteLine("Current cache keys: " + string.Join(", ", keys));
+                Thread.Sleep(6000);
+                cache.Remove("key2");
+                cache.GetAllKeys();
+            }
+            finally 
+            { 
+                cache.Dispose();
+                Thread.Sleep(3000);
+            }
+            #endregion
+
+            #region [Using Microsoft's System.Runtime.Caching]
             int minSeconds = 10;
             string keyName = "password";
-            
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
-            Console.WriteLine("\r\n▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲\r\n  CACHE TEST  \r\n▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲▼▲\r\n");
-
+            Console.WriteLine("\r\n  System.Runtime.Caching Test  \r\n↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓\r\n");
             CacheHelper.OnCacheItemUpdated += (k, r) => 
             { 
                 Console.WriteLine($"[CacheUpdate] ⇒ [{k}][{r}]"); 
@@ -31,7 +53,7 @@ namespace Test
 
             for (int i = 1; i < 7; i++)
             {
-                var ci = new ExampleItem { KeyName = $"{keyName}{i}", KeyValue = GenerateKey(), KeyTime = TimeSpan.FromSeconds(minSeconds) };
+                var ci = new ExampleItem { KeyName = $"{keyName}{i}", KeyValue = GenerateKeyValue(), KeyTime = TimeSpan.FromSeconds(minSeconds) };
                 CacheHelper.AddOrUpdate($"{keyName}{i}", ci, TimeSpan.FromSeconds(minSeconds));
                 Thread.Sleep(100);
                 minSeconds *= 20;
@@ -54,7 +76,7 @@ namespace Test
                         }
                         break;
                     case ConsoleKey.A: case ConsoleKey.U:
-                        CacheHelper.AddOrUpdate(keyName, GenerateKey(), TimeSpan.FromSeconds(10));
+                        CacheHelper.AddOrUpdate(keyName, GenerateKeyValue(), TimeSpan.FromSeconds(10));
                         break;
                     case ConsoleKey.F: case ConsoleKey.G:
                         var fetch = CacheHelper.Get(keyName);
@@ -68,6 +90,15 @@ namespace Test
                 }
             }
             CacheHelper.Shutdown();
+            #endregion
+        }
+
+        static void Cache_ItemEvicted(EvictionInfo<string> evictionInfo)
+        {
+            Console.WriteLine($"Cache item evicted: Key='{evictionInfo.Key}'\r\n" + 
+                              $"Value='{evictionInfo.Value}'\r\n" +
+                              $"Reason='{evictionInfo.Reason}'\r\n" +
+                              $"Expiration='{evictionInfo.ExpirationTime}'\r\n");
         }
 
         /// <summary><para>
@@ -83,7 +114,7 @@ namespace Test
         /// </para><para>
         ///   The base of possible codes is large (about 3.2 * 10^34).
         /// </para></summary>
-        static string GenerateKey(int pLength = 6, long pSeed = 0)
+        static string GenerateKeyValue(int pLength = 6, long pSeed = 0)
         {
             const string pwChars = "2346789BCDFGHJKMPQRTVWXY";
             if (pLength < 6)
@@ -102,8 +133,16 @@ namespace Test
 
             return (new string(result));
         }
+
+        static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Console.WriteLine($"[ERROR] UnhandledException: {(e.ExceptionObject as Exception)?.Message}");
+        }
     }
 
+    /// <summary>
+    /// An example object for the <see cref="System.Runtime.Caching.MemoryCache"/>.
+    /// </summary>
     class ExampleItem
     {
         public string? KeyName { get; set; }

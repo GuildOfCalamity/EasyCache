@@ -208,3 +208,142 @@ public static class CacheHelper
     }
     #endregion
 }
+
+#region [Home-brew cache without System.Runtime.Caching]
+public class CacheItem<T>
+{
+    public T? Value { get; set; }
+    public DateTime ExpirationTime { get; set; }
+}
+
+public class EvictionInfo<T>
+{
+    public string Key { get; set; }
+    public T? Value { get; set; }
+    public DateTime ExpirationTime { get; set; }
+    public string Reason { get; set; }
+    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason)
+    {
+        Key = key;
+        Value = value;
+        ExpirationTime = expirationTime;
+        Reason = reason;
+    }
+}
+
+public class CacheHelper<T> : IDisposable
+{
+    public event ItemEvictedHandler? ItemEvicted;
+    public delegate void ItemEvictedHandler(EvictionInfo<T> evictionInfo);
+    readonly Dictionary<string, CacheItem<T>> _cache = new Dictionary<string, CacheItem<T>>();
+    readonly TimeSpan _checkInterval = TimeSpan.FromSeconds(2);
+    Timer? _evictionTimer = null;
+    bool _disposed = false;
+
+    public CacheHelper()
+    {
+        _evictionTimer = new Timer(EvictExpiredItems, null, _checkInterval, _checkInterval);
+    }
+
+    public CacheHelper(TimeSpan checkInterval)
+    {
+        if (checkInterval == TimeSpan.Zero || checkInterval == TimeSpan.MinValue)
+            checkInterval = TimeSpan.FromSeconds(1);
+
+        _evictionTimer = new Timer(EvictExpiredItems, null, checkInterval, checkInterval);
+    }
+
+    public void AddOrUpdate(string key, T value, TimeSpan timeToLive)
+    {
+        var expirationTime = DateTime.Now.Add(timeToLive);
+        lock (_cache)
+        {
+            if (_cache.ContainsKey(key))
+            {
+                _cache[key].Value = value;
+                _cache[key].ExpirationTime = expirationTime;
+            }
+            else
+            {
+                _cache[key] = new CacheItem<T> { Value = value, ExpirationTime = expirationTime };
+            }
+        }
+    }
+
+    public void Remove(string key)
+    {
+        lock (_cache)
+        {
+            if (_cache.TryGetValue(key, out var cacheItem))
+            {
+                _cache.Remove(key);
+                // Fire the eviction event with the reason "Manual"
+                OnItemEvicted(new EvictionInfo<T>(key, cacheItem.Value, cacheItem.ExpirationTime, "Manual"));
+            }
+        }
+    }
+
+    public List<string> GetAllKeys()
+    {
+        lock (_cache)
+        {
+            return _cache.Keys.ToList();
+        }
+    }
+
+    /// <summary>
+    /// Timer callback event for <see cref="Dictionary{TKey, TValue}"/> cache.
+    /// </summary>
+    void EvictExpiredItems(object? state)
+    {
+        List<string> expiredKeys = new();
+
+        lock (_cache)
+        {
+            foreach (var entry in _cache)
+            {
+                if (entry.Value.ExpirationTime <= DateTime.Now)
+                {
+                    expiredKeys.Add(entry.Key);
+                }
+            }
+            foreach (var key in expiredKeys)
+            {
+                var cacheItem = _cache[key];
+                _cache.Remove(key);
+                // Fire the eviction event when an item expires
+                OnItemEvicted(new EvictionInfo<T>(key, cacheItem.Value, cacheItem.ExpirationTime, "Expired"));
+            }
+        }
+    }
+
+    protected virtual void OnItemEvicted(EvictionInfo<T> evictionInfo)
+    {
+        ItemEvicted?.Invoke(evictionInfo); // Fire the event if there are subscribers
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this); // Prevents finalizer from running
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                if (_evictionTimer != null)
+                {
+                    _evictionTimer.Dispose();
+                    _evictionTimer = null;
+                }
+            }
+            _disposed = true;
+        }
+    }
+
+    ~CacheHelper() => Dispose(false);
+}
+#endregion
