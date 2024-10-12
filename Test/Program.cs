@@ -11,7 +11,7 @@ internal class Program
 
         #region [Using my home-brew cache]
         Console.WriteLine("\r\n  Home-Brew Cache Test  \r\n↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓\r\n");
-        var cache = new CacheHelper<string>(TimeSpan.FromSeconds(2));
+        var cache = new CacheHelper<string>();
         cache.ItemEvicted += OnItemEvicted;
         cache.ItemUpdated += OnItemUpdated;
         try
@@ -19,10 +19,13 @@ internal class Program
             cache.AddOrUpdate("key1", GenerateKeyValue(), TimeSpan.FromSeconds(3));
             cache.AddOrUpdate("key2", GenerateKeyValue(), TimeSpan.FromHours(24));
             cache.AddOrUpdate("key3", GenerateKeyValue(), TimeSpan.FromDays(5));
+            cache.AddOrUpdate("key5", GenerateKeyValue(), DateTime.Now.AddMinutes(1));
             var keys = cache.GetAllKeys();
             Console.WriteLine($"Current cache keys: {string.Join(", ", keys)}");
             Thread.Sleep(6000);
+            cache.AddOrUpdate("key5", GenerateKeyValue(), DateTime.Now.AddMinutes(2));
             Console.WriteLine($"The current cache does {(cache.Contains("key1") ? "" : "not")} contain the key \"key1\"");
+            Console.WriteLine($"The current cache does {(cache.Contains("key2") ? "" : "not")} contain the key \"key2\"");
             cache.Remove("key2");
             cache.GetAllKeys();
         }
@@ -58,7 +61,7 @@ internal class Program
         {
             var ci = new ExampleItem { KeyName = $"{keyName}{i}", KeyValue = GenerateKeyValue(), KeyTime = TimeSpan.FromSeconds(minSeconds) };
             CacheHelper.AddOrUpdate($"{keyName}{i}", ci, TimeSpan.FromSeconds(minSeconds));
-            Thread.Sleep(100);
+            Thread.Sleep(50);
             minSeconds *= 20;
         }
 
@@ -96,7 +99,7 @@ internal class Program
         #endregion
     }
 
-    static void OnItemUpdated(UpdatedInfo<string> info) => Console.WriteLine(
+    static void OnItemUpdated(ObjectInfo<string> info) => Console.WriteLine(
         $"Cache item updated: Key='{info.Key}'\r\n" +
         $"Value='{info.Value}'\r\n" +
         $"Expiration='{info.ExpirationTime}'\r\n");
