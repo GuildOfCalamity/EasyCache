@@ -214,17 +214,19 @@ public static class CacheHelper
 /// A hand-rolled replacement for <see cref="System.Runtime.Caching.MemoryCache"/> that offers generic support.
 /// </summary>
 /// <typeparam name="T"></typeparam>
+/// <remarks>The default timer interval is 2 seconds.</remarks>
 public class CacheHelper<T> : IDisposable
 {
     public event ItemEvictedHandler? ItemEvicted;
     public event ItemUpdatedHandler? ItemUpdated;
     public delegate void ItemEvictedHandler(EvictionInfo<T> evictionInfo);
-    public delegate void ItemUpdatedHandler(UpdatedInfo<T> updateInfo);
+    public delegate void ItemUpdatedHandler(ObjectInfo<T> updateInfo);
     readonly Dictionary<string, CacheItem<T>> _cache = new Dictionary<string, CacheItem<T>>();
     readonly TimeSpan _checkInterval = TimeSpan.FromSeconds(2);
     Timer? _evictionTimer = null;
     bool _disposed = false;
 
+    #region [Constructors]
     public CacheHelper()
     {
         _evictionTimer = new Timer(EvictExpiredItems, null, _checkInterval, _checkInterval);
@@ -237,6 +239,19 @@ public class CacheHelper<T> : IDisposable
 
         _evictionTimer = new Timer(EvictExpiredItems, null, checkInterval, checkInterval);
     }
+    #endregion
+
+    /// <summary>
+    /// Event for object eviction.
+    /// </summary>
+    /// <param name="evictionInfo"><see cref="EvictionInfo{T}"/></param>
+    protected virtual void OnItemEvicted(EvictionInfo<T> evictionInfo) => ItemEvicted?.Invoke(evictionInfo);
+
+    /// <summary>
+    /// Event for object update.
+    /// </summary>
+    /// <param name="updateInfo"><see cref="ObjectInfo{T}"/></param>
+    protected virtual void OnItemUpdated(ObjectInfo<T> updateInfo) => ItemUpdated?.Invoke(updateInfo);
 
     /// <summary>
     /// Adds or updates any object in the <see cref="_cache"/>.
@@ -249,21 +264,57 @@ public class CacheHelper<T> : IDisposable
         if (string.IsNullOrEmpty(key))
             return;
 
-        var expirationTime = DateTime.Now.Add(timeToLive);
+        DateTime expire = DateTime.Now.Add(timeToLive);
+
         lock (_cache)
         {
             if (_cache.ContainsKey(key))
             {
                 _cache[key].Value = value;
-                _cache[key].ExpirationTime = expirationTime;
-                OnItemUpdated(new UpdatedInfo<T>(key, value, expirationTime));
+                _cache[key].ExpirationTime = expire;
+                OnItemUpdated(new ObjectInfo<T>(key, value, expire));
             }
             else
             {
                 _cache[key] = new CacheItem<T> 
                 { 
                     Value = value, 
-                    ExpirationTime = expirationTime 
+                    ExpirationTime = expire 
+                };
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds or updates any object in the <see cref="_cache"/>.
+    /// </summary>
+    /// <param name="key">the key name</param>
+    /// <param name="value">the object to cache</param>
+    /// <param name="timeToExpire">the date when the object will expire</param>
+    public void AddOrUpdate(string key, T? value, DateTime timeToExpire)
+    {
+        if (string.IsNullOrEmpty(key))
+            return;
+
+        if (timeToExpire == DateTime.MinValue)
+            timeToExpire = DateTime.Now;
+
+        DateTime expire = timeToExpire;
+        
+        lock (_cache)
+        {
+            if (_cache.ContainsKey(key))
+            {
+                _cache[key].Value = value;
+                _cache[key].ExpirationTime = expire;
+                OnItemUpdated(new ObjectInfo<T>(key, value, expire));
+            }
+            else
+            {
+                _cache[key] = new CacheItem<T>
+                {
+                    Value = value,
+                    ExpirationTime = expire
                 };
             }
         }
@@ -353,9 +404,6 @@ public class CacheHelper<T> : IDisposable
         }
     }
 
-    protected virtual void OnItemEvicted(EvictionInfo<T> evictionInfo) => ItemEvicted?.Invoke(evictionInfo);
-    protected virtual void OnItemUpdated(UpdatedInfo<T> updateInfo) => ItemUpdated?.Invoke(updateInfo);
-
     public void Dispose()
     {
         Dispose(true);
@@ -384,6 +432,7 @@ public class CacheHelper<T> : IDisposable
     ~CacheHelper() => Dispose(false);
 }
 
+#region [Supporting Classes]
 /// <summary>
 /// Supporting class for <see cref="CacheHelper{T}"/> objects.
 /// </summary>
@@ -396,13 +445,10 @@ public class CacheItem<T>
 /// <summary>
 /// Supporting class for <see cref="CacheHelper{T}"/> events.
 /// </summary>
-public class EvictionInfo<T>
+public class EvictionInfo<T> : ObjectInfo<T>
 {
-    public string Key { get; set; }
-    public T? Value { get; set; }
-    public DateTime ExpirationTime { get; set; }
     public string Reason { get; set; }
-    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason)
+    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason) : base(key, value, expirationTime)
     {
         Key = key;
         Value = value;
@@ -414,16 +460,18 @@ public class EvictionInfo<T>
 /// <summary>
 /// Supporting class for <see cref="CacheHelper{T}"/> events.
 /// </summary>
-public class UpdatedInfo<T>
+public class ObjectInfo<T>
 {
     public string Key { get; set; }
     public T? Value { get; set; }
     public DateTime ExpirationTime { get; set; }
-    public UpdatedInfo(string key, T? value, DateTime expirationTime)
+    public ObjectInfo(string key, T? value, DateTime expirationTime)
     {
         Key = key;
         Value = value;
         ExpirationTime = expirationTime;
     }
 }
+#endregion
+
 #endregion
