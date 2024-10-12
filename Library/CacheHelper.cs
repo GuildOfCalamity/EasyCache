@@ -397,6 +397,18 @@ public class CacheHelper<T> : IDisposable
     }
 
     /// <summary>
+    /// Fetches all objects in the <see cref="_cache"/>.
+    /// </summary>
+    /// <returns><see cref="IEnumerable{T}"/></returns>
+    public IEnumerable<KeyValuePair<string, CacheItem<T>>>? GetCacheAsEnumerable()
+    {
+        lock (_cache)
+        {
+            return _cache.AsEnumerable();
+        }
+    }
+
+    /// <summary>
     /// Timer callback event for <see cref="Dictionary{TKey, TValue}"/> cache.
     /// </summary>
     void EvictExpiredItems(object? state)
