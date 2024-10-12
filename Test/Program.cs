@@ -24,6 +24,9 @@ internal class Program
             Console.WriteLine($"Current cache keys: {string.Join(", ", keys)}");
             Thread.Sleep(6000);
             cache.AddOrUpdate("key5", GenerateKeyValue(), DateTime.Now.AddMinutes(2));
+            var dt = cache.GetExpiration("key5");
+            if (dt != null)
+                Console.WriteLine($"\"key5\" will expire at {dt.Value.ToLongTimeString()} on {dt.Value.ToLongDateString()}");
             Console.WriteLine($"The current cache does {(cache.Contains("key1") ? "" : "not")} contain the key \"key1\"");
             Console.WriteLine($"The current cache does {(cache.Contains("key2") ? "" : "not")} contain the key \"key2\"");
             cache.Remove("key2");
