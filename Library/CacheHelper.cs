@@ -167,22 +167,6 @@ public static class CacheHelper
                yield return item;
         }
     }
-    #endregion
-
-    #region [Private Methods]
-    static void UpdateCallback(System.Runtime.Caching.CacheEntryUpdateArguments arguments)
-    {
-        string format = "  Key: {0,-15} Reason: {1,-30}";
-        Console.WriteLine($"■ [CacheUpdated]  {string.Format(format, arguments.Key, arguments.RemovedReason)}");
-        OnCacheItemUpdated?.Invoke(arguments.Key, arguments.RemovedReason);
-
-        #region [Experimental]
-        if (arguments.UpdatedCacheItemPolicy != null)
-            Console.WriteLine($"■ Expiration: {arguments.UpdatedCacheItemPolicy.AbsoluteExpiration.TimeOfDay.ToReadableString()}");
-        if (arguments.UpdatedCacheItem != null)
-            Console.WriteLine($"■ CacheObject: {arguments.UpdatedCacheItem}");
-        #endregion
-    }
 
     /// <summary>
     /// Human-friendly <see cref="TimeSpan"/> formatter.
@@ -205,6 +189,22 @@ public static class CacheHelper
             return $"{span.TotalMilliseconds:N4} milliseconds";
         else
             return parts.ToString().Trim();
+    }
+    #endregion
+
+    #region [Private Methods]
+    static void UpdateCallback(System.Runtime.Caching.CacheEntryUpdateArguments arguments)
+    {
+        string format = "  Key: {0,-15} Reason: {1,-30}";
+        Console.WriteLine($"■ [CacheUpdated]  {string.Format(format, arguments.Key, arguments.RemovedReason)}");
+        OnCacheItemUpdated?.Invoke(arguments.Key, arguments.RemovedReason);
+
+        #region [Experimental]
+        if (arguments.UpdatedCacheItemPolicy != null)
+            Console.WriteLine($"■ Expiration: {arguments.UpdatedCacheItemPolicy.AbsoluteExpiration.TimeOfDay.ToReadableString()}");
+        if (arguments.UpdatedCacheItem != null)
+            Console.WriteLine($"■ CacheObject: {arguments.UpdatedCacheItem}");
+        #endregion
     }
     #endregion
 }
@@ -318,6 +318,24 @@ public class CacheHelper<T> : IDisposable
                 };
             }
         }
+    }
+
+    /// <summary>
+    /// Returns the expiration for the provided <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">the key name</param>
+    /// <returns>expiration <see cref="DateTime"/> if found, null otherwise</returns>
+    public DateTime? GetExpiration(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return null;
+
+        lock (_cache)
+        {
+            if (_cache.TryGetValue(key, out var ci))
+                return ci.ExpirationTime;
+        }
+        return null;
     }
 
     /// <summary>
