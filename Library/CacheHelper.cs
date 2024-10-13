@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.Caching;
 using System.Text;
 
@@ -448,6 +449,8 @@ public class CacheHelper<T> : IDisposable
             {
                 if (_evictionTimer != null)
                 {
+                    _cache.Clear();
+                    Debug.WriteLine($"[INFO] {nameof(_cache)} cleared during disposal");
                     _evictionTimer.Dispose();
                     _evictionTimer = null;
                 }
