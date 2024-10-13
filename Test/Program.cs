@@ -30,7 +30,10 @@ internal class Program
             Console.WriteLine($"The current cache does {(cache.Contains("key1") ? "" : "not")} contain the key \"key1\"");
             Console.WriteLine($"The current cache does {(cache.Contains("key2") ? "" : "not")} contain the key \"key2\"");
             cache.Remove("key2");
-            cache.GetAllKeys();
+            foreach (var ci in cache.GetCacheAsEnumerable())
+            {
+                Console.WriteLine($"Cache item {ci.Key} value: {ci.Value.Value}");
+            }
         }
         finally 
         { 
