@@ -37,6 +37,9 @@
  // Check if exists
  Console.WriteLine($"The current cache does {(cache.Contains("key1") ? "" : "not")} contain key1");
 
+ // Refresh the expiration by fetching
+ var temp = cache.Get("key1");
+
  // Delete an item
  cache.Remove("key1");
 
