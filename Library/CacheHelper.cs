@@ -265,6 +265,9 @@ public class CacheHelper<T> : IDisposable
         if (string.IsNullOrEmpty(key))
             return;
 
+        if (timeToLive == TimeSpan.MinValue || timeToLive.Ticks <= 1)
+            timeToLive = TimeSpan.FromMilliseconds(1);
+
         DateTime expire = DateTime.Now.Add(timeToLive);
 
         lock (_cache)
@@ -273,6 +276,7 @@ public class CacheHelper<T> : IDisposable
             {
                 _cache[key].Value = value;
                 _cache[key].ExpirationTime = expire;
+                _cache[key].TimeToLive = timeToLive;
                 OnItemUpdated(new ObjectInfo<T>(key, value, expire));
             }
             else
@@ -280,7 +284,8 @@ public class CacheHelper<T> : IDisposable
                 _cache[key] = new CacheItem<T> 
                 { 
                     Value = value, 
-                    ExpirationTime = expire 
+                    ExpirationTime = expire,
+                    TimeToLive = timeToLive
                 };
             }
         }
@@ -296,18 +301,20 @@ public class CacheHelper<T> : IDisposable
     {
         if (string.IsNullOrEmpty(key))
             return;
+    
+        if (timeToExpire == DateTime.MinValue || timeToExpire <= DateTime.Now)
+            timeToExpire = DateTime.Now.AddMilliseconds(1);
+    
+        DateTime expire = new DateTime(timeToExpire.Ticks);
+        TimeSpan ttl = expire - DateTime.Now;
 
-        if (timeToExpire == DateTime.MinValue)
-            timeToExpire = DateTime.Now;
-
-        DateTime expire = timeToExpire;
-        
         lock (_cache)
         {
             if (_cache.ContainsKey(key))
             {
                 _cache[key].Value = value;
                 _cache[key].ExpirationTime = expire;
+                _cache[key].TimeToLive = ttl;
                 OnItemUpdated(new ObjectInfo<T>(key, value, expire));
             }
             else
@@ -315,14 +322,37 @@ public class CacheHelper<T> : IDisposable
                 _cache[key] = new CacheItem<T>
                 {
                     Value = value,
-                    ExpirationTime = expire
+                    ExpirationTime = expire,
+                    TimeToLive = ttl
                 };
             }
         }
     }
 
     /// <summary>
-    /// Returns the expiration for the provided <paramref name="key"/>.
+    /// Fetches the matching <typeparamref name="T"/> for the given <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">the key name</param>
+    /// <remarks>The <see cref="CacheItem{T}.ExpirationTime"/> will be updated if the <paramref name="key"/> is found.</remarks>
+    public T? Get(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return default;
+
+        lock (_cache)
+        {
+            if (_cache.ContainsKey(key))
+            {
+                // Update the item's expiration and return its value.
+                _cache[key].ExpirationTime = DateTime.Now.Add(_cache[key].TimeToLive);
+                return _cache[key].Value;
+            }
+        }
+        return default;
+    }
+
+    /// <summary>
+    /// Fetches the expiration for the provided <paramref name="key"/>.
     /// </summary>
     /// <param name="key">the key name</param>
     /// <returns>expiration <see cref="DateTime"/> if found, null otherwise</returns>
@@ -335,6 +365,24 @@ public class CacheHelper<T> : IDisposable
         {
             if (_cache.TryGetValue(key, out var ci))
                 return ci.ExpirationTime;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Fetches the time-to-live for the provided <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">the key name</param>
+    /// <returns>expiration <see cref="TimeSpan"/> if found, null otherwise</returns>
+    public TimeSpan? GetTimeToLive(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+            return null;
+
+        lock (_cache)
+        {
+            if (_cache.TryGetValue(key, out var ci))
+                return ci.TimeToLive;
         }
         return null;
     }
@@ -438,7 +486,7 @@ public class CacheHelper<T> : IDisposable
     public void Dispose()
     {
         Dispose(true);
-        GC.SuppressFinalize(this); // Prevent finalizer
+        GC.SuppressFinalize(this); // prevent finalizer
     }
 
     protected virtual void Dispose(bool disposing)
@@ -471,23 +519,18 @@ public class CacheHelper<T> : IDisposable
 /// </summary>
 public class CacheItem<T>
 {
+    /// <summary>
+    /// The value object of the cache item.
+    /// </summary>
     public T? Value { get; set; }
+    /// <summary>
+    /// The time when the cache item should be evicted.
+    /// </summary>
     public DateTime ExpirationTime { get; set; }
-}
-
-/// <summary>
-/// Supporting class for <see cref="CacheHelper{T}"/> events.
-/// </summary>
-public class EvictionInfo<T> : ObjectInfo<T>
-{
-    public string Reason { get; set; }
-    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason) : base(key, value, expirationTime)
-    {
-        Key = key;
-        Value = value;
-        ExpirationTime = expirationTime;
-        Reason = reason;
-    }
+    /// <summary>
+    /// This value is stored for the get method only so the expiration can be refreshed after access.
+    /// </summary>
+    public TimeSpan TimeToLive { get; set; }
 }
 
 /// <summary>
@@ -503,6 +546,18 @@ public class ObjectInfo<T>
         Key = key;
         Value = value;
         ExpirationTime = expirationTime;
+    }
+}
+
+/// <summary>
+/// Supporting class for <see cref="CacheHelper{T}"/> events.
+/// </summary>
+public class EvictionInfo<T> : ObjectInfo<T>
+{
+    public string Reason { get; set; }
+    public EvictionInfo(string key, T? value, DateTime expirationTime, string reason) : base(key, value, expirationTime)
+    {
+        Reason = reason;
     }
 }
 #endregion
