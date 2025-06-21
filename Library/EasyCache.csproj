@@ -1,20 +1,20 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net4.8.1;net6.0</TargetFrameworks>
+    <TargetFrameworks>net6.0;net4.8.1</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <Version>2.0.0.0</Version>
-    <FileVersion>2.0.0.0</FileVersion>
-    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <Version>2.0.0.1</Version>
+    <FileVersion>2.0.0.1</FileVersion>
+    <AssemblyVersion>2.0.0.1</AssemblyVersion>
+    <PackageId>EasyCache2025</PackageId>
     <ProductName>EasyCache</ProductName>
     <Authors>The Guild</Authors>
-    <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <OptimizeImplicitlyTriggeredBuild>true</OptimizeImplicitlyTriggeredBuild>
-    <PreserveCompilationContext>false</PreserveCompilationContext>
     <Title>EasyCache</Title>
+    <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>true</AppendRuntimeIdentifierToOutputPath>
+    <OptimizeImplicitlyTriggeredBuild>true</OptimizeImplicitlyTriggeredBuild>
     <Description>A time-based object-caching helper library for your projects.</Description>
   </PropertyGroup>
 
