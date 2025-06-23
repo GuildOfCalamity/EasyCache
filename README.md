@@ -19,7 +19,8 @@
 
 ## Usage
 
-```
+```csharp
+
  // Instantiate
  var cache = new CacheHelper<string>();
 
@@ -56,6 +57,7 @@
 
  // Clean-up
  cache.Dispose();
+
 ```
 
 ## Example
