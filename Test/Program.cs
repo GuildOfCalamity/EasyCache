@@ -1,5 +1,6 @@
 ﻿using System;
-using EasyCache;
+
+using Guildsoft;
 
 namespace Test;
 

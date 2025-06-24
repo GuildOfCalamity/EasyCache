@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.Caching;
 using System.Text;
 
-namespace EasyCache;
+namespace Guildsoft;
 
 /// <summary>
 /// The MemoryCache class is a concrete implementation of the abstract ObjectCache class.
@@ -20,12 +20,12 @@ public static class CacheHelper
     /// <summary>
     /// An event that fires when a cache item has been updated. Format is {Key, CacheEntryRemovedReason}
     /// </summary>
-    public static event Action<string, CacheEntryRemovedReason> OnCacheItemUpdated;
+    public static event Action<string, CacheEntryRemovedReason>? OnCacheItemUpdated;
     
     /// <summary>
     /// An event that fires when any error occurs.
     /// </summary>
-    public static event Action<Exception> OnCacheException;
+    public static event Action<Exception>? OnCacheException;
 
     #region [Public Methods]
     public static bool AddOrUpdate(string key, object value, double expirationSeconds) => AddOrUpdate(key, value, TimeSpan.FromSeconds(expirationSeconds));
@@ -201,10 +201,10 @@ public static class CacheHelper
         OnCacheItemUpdated?.Invoke(arguments.Key, arguments.RemovedReason);
 
         #region [Experimental]
-        if (arguments.UpdatedCacheItemPolicy != null)
-            Console.WriteLine($"■ Expiration: {arguments.UpdatedCacheItemPolicy.AbsoluteExpiration.TimeOfDay.ToReadableString()}");
-        if (arguments.UpdatedCacheItem != null)
-            Console.WriteLine($"■ CacheObject: {arguments.UpdatedCacheItem}");
+        //if (arguments.UpdatedCacheItemPolicy != null)
+        //    Console.WriteLine($"■ Expiration: {arguments.UpdatedCacheItemPolicy.AbsoluteExpiration.TimeOfDay.ToReadableString()}");
+        //if (arguments.UpdatedCacheItem != null)
+        //    Console.WriteLine($"■ CacheObject: {arguments.UpdatedCacheItem}");
         #endregion
     }
     #endregion
